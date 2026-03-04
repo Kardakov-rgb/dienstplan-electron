@@ -1,0 +1,53 @@
+name: Deploy Web-Version zu GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/shift-scheduler-app-Q1mVm
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Abhängigkeiten installieren (ohne native Module)
+        run: npm install --ignore-scripts
+
+      - name: Web-Version bauen
+        run: npm run web:build
+        env:
+          GITHUB_PAGES: 'true'
+
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+
+      - name: Build-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-web
+
+      - name: Zu GitHub Pages deployen
+        id: deployment
+        uses: actions/deploy-pages@v4
