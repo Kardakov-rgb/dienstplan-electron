@@ -1,7 +1,10 @@
-import Database from 'better-sqlite3'
+import type BetterSqlite3 from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+
+// eslint-disable-next-line no-eval
+const Database = eval("require('better-sqlite3')") as typeof BetterSqlite3
 
 let db: Database.Database
 
