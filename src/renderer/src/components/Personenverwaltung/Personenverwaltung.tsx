@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Person, Wochentag, DienstArt } from '../../../../shared/types'
+import { getApi } from '../../api'
 
 const WOCHENTAGE = [
   { id: Wochentag.MONTAG, label: 'Mo' },
@@ -54,7 +55,7 @@ export default function Personenverwaltung(): React.ReactElement {
   const [msg, setMsg] = useState<{ type: string; text: string } | null>(null)
 
   const loadPersonen = useCallback(async () => {
-    const data = await window.api.personsGetAll()
+    const data = await getApi().personsGetAll()
     setPersonen(data)
     setFiltered(data)
   }, [])
@@ -114,11 +115,11 @@ export default function Personenverwaltung(): React.ReactElement {
         verfuegbare_dienst_arten: [...form.dienstArten].join(',')
       }
       if (isNew) {
-        await window.api.personsCreate(payload)
+        await getApi().personsCreate(payload)
         setMsg({ type: 'success', text: 'Person erfolgreich erstellt.' })
         cancel()
       } else if (selectedId !== null) {
-        await window.api.personsUpdate({ id: selectedId, ...payload })
+        await getApi().personsUpdate({ id: selectedId, ...payload })
         setMsg({ type: 'success', text: 'Person erfolgreich gespeichert.' })
       }
       await loadPersonen()
@@ -139,7 +140,7 @@ export default function Personenverwaltung(): React.ReactElement {
     const p = personen.find((x) => x.id === selectedId)
     if (!confirm(`Person "${p?.name}" wirklich löschen? Alle zugehörigen Dienste und Wünsche werden ebenfalls gelöscht.`)) return
     try {
-      await window.api.personsDelete(selectedId)
+      await getApi().personsDelete(selectedId)
       setMsg({ type: 'success', text: 'Person gelöscht.' })
       cancel()
       await loadPersonen()

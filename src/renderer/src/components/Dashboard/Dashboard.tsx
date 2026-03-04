@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { getApi } from '../../api'
 
 interface DashboardProps {
   onNavigate: (tab: string) => void
@@ -16,8 +17,8 @@ export default function Dashboard({ onNavigate }: DashboardProps): React.ReactEl
     const load = async (): Promise<void> => {
       try {
         const [personen, dienstplaene] = await Promise.all([
-          window.api.personsGetAll(),
-          window.api.dienstplaeneGetAll()
+          getApi().personsGetAll(),
+          getApi().dienstplaeneGetAll()
         ])
         setPersonCount(personen.length)
         setDienstplanCount(dienstplaene.length)

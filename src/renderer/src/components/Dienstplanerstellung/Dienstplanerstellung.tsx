@@ -9,6 +9,7 @@ import {
   DienstplanStatus,
   WunschTyp
 } from '../../../../shared/types'
+import { getApi } from '../../api'
 
 const WOCHENTAGE_SHORT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
 
@@ -284,9 +285,9 @@ export default function Dienstplanerstellung(): React.ReactElement {
 
   const loadData = useCallback(async () => {
     const [p, dp, w] = await Promise.all([
-      window.api.personsGetAll(),
-      window.api.dienstplaeneForMonat(monatJahr),
-      window.api.wuenscheForMonat(monatJahr)
+      getApi().personsGetAll(),
+      getApi().dienstplaeneForMonat(monatJahr),
+      getApi().wuenscheForMonat(monatJahr)
     ])
     setPersonen(p)
     setDienstplaene(dp)
@@ -302,7 +303,7 @@ export default function Dienstplanerstellung(): React.ReactElement {
 
   const selectPlan = async (plan: Dienstplan): Promise<void> => {
     setSelectedPlan(plan)
-    const d = await (window.api as unknown as { dienstplaeneGetDienste: (id: number) => Promise<Dienst[]> }).dienstplaeneGetDienste(plan.id)
+    const d = await getApi().dienstplaeneGetDienste(plan.id)
     setDienste(d)
     setHasUnsaved(false)
   }
@@ -321,14 +322,14 @@ export default function Dienstplanerstellung(): React.ReactElement {
     setWarnungen([])
     setMsg(null)
 
-    const cleanup = window.api.onGenerateProgress((p) => setProgress(p))
+    const cleanup = getApi().onGenerateProgress((p) => setProgress(p))
 
     try {
       const monatName = new Date(monatJahr + '-01').toLocaleString('de-DE', {
         month: 'long',
         year: 'numeric'
       })
-      const result = await window.api.dienstplaeneGenerate(monatJahr, `Dienstplan ${monatName}`)
+      const result = await getApi().dienstplaeneGenerate(monatJahr, `Dienstplan ${monatName}`)
       setWarnungen(result.warnungen)
       await loadData()
       setMsg({
@@ -346,7 +347,7 @@ export default function Dienstplanerstellung(): React.ReactElement {
   const saveDienstplan = async (): Promise<void> => {
     if (!selectedPlan) return
     try {
-      await window.api.dienstplaeneSave(selectedPlan, dienste)
+      await getApi().dienstplaeneSave(selectedPlan, dienste)
       setHasUnsaved(false)
       setMsg({ type: 'success', text: 'Dienstplan gespeichert.' })
     } catch (e: unknown) {
@@ -358,7 +359,7 @@ export default function Dienstplanerstellung(): React.ReactElement {
     if (!selectedPlan) return
     if (!confirm(`Dienstplan "${selectedPlan.name}" wirklich löschen?`)) return
     try {
-      await window.api.dienstplaeneDelete(selectedPlan.id)
+      await getApi().dienstplaeneDelete(selectedPlan.id)
       setSelectedPlan(null)
       setDienste([])
       await loadData()
@@ -370,10 +371,10 @@ export default function Dienstplanerstellung(): React.ReactElement {
 
   const exportExcel = async (): Promise<void> => {
     if (!selectedPlan) return
-    const path = await window.api.dialogSaveExcel()
+    const path = await getApi().dialogSaveExcel()
     if (!path) return
     try {
-      await window.api.excelExportDienstplan(selectedPlan.id, path)
+      await getApi().excelExportDienstplan(selectedPlan.id, path)
       setMsg({ type: 'success', text: 'Excel-Export erfolgreich.' })
     } catch (e: unknown) {
       setMsg({ type: 'danger', text: `Export-Fehler: ${e instanceof Error ? e.message : String(e)}` })
@@ -387,15 +388,15 @@ export default function Dienstplanerstellung(): React.ReactElement {
   }
 
   const addWunsch = async (wunsch: Omit<MonatsWunsch, 'id' | 'erfuellt'>): Promise<void> => {
-    await window.api.wuenscheCreate(wunsch)
-    const w = await window.api.wuenscheForMonat(monatJahr)
+    await getApi().wuenscheCreate(wunsch)
+    const w = await getApi().wuenscheForMonat(monatJahr)
     setWuensche(w)
     setShowWunschModal(false)
   }
 
   const deleteWunsch = async (id: number): Promise<void> => {
-    await window.api.wuenscheDelete(id)
-    const w = await window.api.wuenscheForMonat(monatJahr)
+    await getApi().wuenscheDelete(id)
+    const w = await getApi().wuenscheForMonat(monatJahr)
     setWuensche(w)
   }
 

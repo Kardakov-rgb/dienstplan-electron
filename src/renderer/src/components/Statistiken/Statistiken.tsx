@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { StatistikDaten, FairnessScore } from '../../../../shared/types'
+import { getApi } from '../../api'
 
 function getMonatVor(monate: number): string {
   const d = new Date()
@@ -29,8 +30,8 @@ export default function Statistiken(): React.ReactElement {
     setMsg(null)
     try {
       const [d, f] = await Promise.all([
-        window.api.statistikenGesamt(von, bis),
-        window.api.statistikenFairness()
+        getApi().statistikenGesamt(von, bis),
+        getApi().statistikenFairness()
       ])
       setDaten(d)
       setFairness(f)
@@ -46,10 +47,10 @@ export default function Statistiken(): React.ReactElement {
   }, [load])
 
   const exportExcel = async (): Promise<void> => {
-    const path = await window.api.dialogSaveExcel()
+    const path = await getApi().dialogSaveExcel()
     if (!path) return
     try {
-      await window.api.excelExportStatistiken(von, bis, path)
+      await getApi().excelExportStatistiken(von, bis, path)
       setMsg('Export erfolgreich.')
     } catch (e: unknown) {
       setMsg(`Export-Fehler: ${e instanceof Error ? e.message : String(e)}`)

@@ -9,17 +9,20 @@
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder",
     "lint": "eslint src",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "web:dev": "vite --config vite.web.config.ts",
+    "web:build": "vite build --config vite.web.config.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
     "better-sqlite3": "^11.0.0",
+    "dexie": "^4.3.0",
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron/rebuild": "^3.6.0",
     "@types/better-sqlite3": "^7.6.8",
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",

@@ -155,6 +155,7 @@ export interface IpcApi {
   // Dienstpläne
   dienstplaeneGetAll: () => Promise<Dienstplan[]>
   dienstplaeneForMonat: (monatJahr: string) => Promise<Dienstplan[]>
+  dienstplaeneGetDienste: (dienstplanId: number) => Promise<Dienst[]>
   dienstplaeneSave: (dienstplan: Dienstplan, dienste: Dienst[]) => Promise<Dienstplan>
   dienstplaeneDelete: (id: number) => Promise<void>
   dienstplaeneGenerate: (monatJahr: string, dienstplanName: string) => Promise<GenerierungErgebnis>
