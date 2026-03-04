@@ -11,7 +11,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
+    "better-sqlite3": "^11.0.0",
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
