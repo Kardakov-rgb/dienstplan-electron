@@ -45,11 +45,16 @@ app.whenReady().then(() => {
   try {
     initDatabase()
     console.log('Database initialized successfully')
+    registerIpcHandlers()
   } catch (err) {
     console.error('Failed to initialize database:', err)
+    const { dialog } = await import('electron')
+    dialog.showErrorBox(
+      'Datenbankfehler',
+      `Die Datenbank konnte nicht initialisiert werden:\n\n${err instanceof Error ? err.message : String(err)}`
+    )
   }
 
-  registerIpcHandlers()
   createWindow()
 
   app.on('activate', function () {
