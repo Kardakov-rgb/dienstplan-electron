@@ -1,0 +1,20 @@
+{
+  appId: "de.krankenhaus.dienstplan",
+  productName: "Dienstplan-Manager",
+  copyright: "Copyright © 2024",
+  directories: {
+    buildResources: "build"
+  },
+  files: [
+    "out/**/*"
+  ],
+  win: {
+    target: [{ target: "nsis", arch: ["x64"] }]
+  },
+  mac: {
+    target: [{ target: "dmg", arch: ["x64", "arm64"] }]
+  },
+  linux: {
+    target: [{ target: "AppImage", arch: ["x64"] }]
+  }
+}
