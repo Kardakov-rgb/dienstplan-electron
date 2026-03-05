@@ -106,6 +106,7 @@ export class DienstplanGenerator {
   }
 
   generate(): GeneratorResult {
+    console.log('%c=== DienstplanGenerator: NEUE VERSION (kein MCV) ===', 'color: lime; font-weight: bold')
     this.progressCallback?.(0.05)
 
     // Phase 1: Slots erstellen
