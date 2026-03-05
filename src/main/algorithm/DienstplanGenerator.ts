@@ -242,6 +242,14 @@ export class DienstplanGenerator {
     // Wochentag-Check
     if (!arbeitsTage.includes(wt)) return false
 
+    // VISTEN-So: nur erlaubt wenn Person bereits VISTEN-Sa hat (Wochenendpaket)
+    if (slot.art === DienstArt.VISTEN && wt === Wochentag.SONNTAG) {
+      const samstag = subtractDays(slot.datum, 1)
+      const saSamstag = slots.find((s) => s.datum === samstag && s.art === DienstArt.VISTEN)
+      if (!saSamstag?.zugewiesenePerson || saSamstag.zugewiesenePerson.id !== person.id)
+        return false
+    }
+
     // Urlaub-Check
     const urlaubTag = this.wuensche.find(
       (w) => w.person_id === person.id && w.datum === slot.datum && w.typ === WunschTyp.URLAUB
@@ -359,19 +367,18 @@ export class DienstplanGenerator {
       if (istFeiertag) return false
     }
 
-    // Regel 6 (hart): Max. 1 VisitenDienst-Wochenende pro Monat (= max. 2 VISTEN-Slots)
-    if (slot.art === DienstArt.VISTEN) {
+    // Regel 6 (hart): Max. 1 VisitenDienst-Wochenende pro Monat
+    // Nur für VISTEN-Sa prüfen (VISTEN-So ist immer Pflichtpaarung, kein neues WE)
+    if (slot.art === DienstArt.VISTEN && wt !== Wochentag.SONNTAG) {
       const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
-      if (arten.visten >= 2) return false
+      if (arten.visten >= 1) return false
     }
 
-    // Soll-Limit
+    // Soll-Limit (VISTEN Sa+So = 1 Dienst, daher personDienstArten verwenden)
     if (person.anzahl_dienste > 0) {
-      const aktuelle = diensteDaten.size
-      const zugewiesen = slots.filter(
-        (s) => s.datum !== slot.datum && s.zugewiesenePerson?.id === person.id
-      ).length
-      if (aktuelle + zugewiesen >= person.anzahl_dienste) return false
+      const artenBisher = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+      const gesamtBisher = artenBisher.h24 + artenBisher.visten + artenBisher.davinci
+      if (gesamtBisher >= person.anzahl_dienste) return false
     }
 
     return true
@@ -530,7 +537,9 @@ export class DienstplanGenerator {
 
     const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
     if (slot.art === DienstArt.DIENST_24H) arten.h24++
-    if (slot.art === DienstArt.VISTEN) arten.visten++
+    // VISTEN-So zählt nicht als eigener Dienst (Paket mit Sa = 1 Dienst)
+    if (slot.art === DienstArt.VISTEN && datumToWochentag(slot.datum) !== Wochentag.SONNTAG)
+      arten.visten++
     if (slot.art === DienstArt.DAVINCI) arten.davinci++
     this.personDienstArten.set(person.id, arten)
   }
@@ -554,7 +563,8 @@ export class DienstplanGenerator {
 
     const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
     if (slot.art === DienstArt.DIENST_24H) arten.h24 = Math.max(0, arten.h24 - 1)
-    if (slot.art === DienstArt.VISTEN) arten.visten = Math.max(0, arten.visten - 1)
+    if (slot.art === DienstArt.VISTEN && datumToWochentag(slot.datum) !== Wochentag.SONNTAG)
+      arten.visten = Math.max(0, arten.visten - 1)
     if (slot.art === DienstArt.DAVINCI) arten.davinci = Math.max(0, arten.davinci - 1)
     this.personDienstArten.set(person.id, arten)
   }
