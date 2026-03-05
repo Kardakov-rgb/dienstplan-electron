@@ -114,27 +114,11 @@ export class DienstplanGenerator {
 
     // Phase 2: Constraint Propagation
     this.constraintPropagation(slots)
-    this.progressCallback?.(0.3)
-
-    // Phase 3: MCV-Sortierung (nur unzugewiesene)
-    const offeneSlots = slots.filter((s) => !s.zugewiesenePerson)
-    offeneSlots.sort((a, b) => {
-      const ka = this.getKandidaten(a, slots).length
-      const kb = this.getKandidaten(b, slots).length
-      return ka - kb
-    })
-
-    // Sortierte offene Slots in die Gesamtliste einarbeiten
-    let offeneIdx = 0
-    for (let i = 0; i < slots.length; i++) {
-      if (!slots[i].zugewiesenePerson) {
-        slots[i] = offeneSlots[offeneIdx++]
-      }
-    }
-
     this.progressCallback?.(0.4)
 
-    // Phase 4: Backtracking
+    // Phase 3: Backtracking in chronologischer Reihenfolge
+    // Bewusst kein MCV-Reordering: alle zeitbasierten Constraints (24h-Ruhezeit,
+    // 2-Tage-Abstand etc.) setzen chronologische Verarbeitungsreihenfolge voraus.
     this.backtrack(slots, 0)
     this.progressCallback?.(0.9)
 
