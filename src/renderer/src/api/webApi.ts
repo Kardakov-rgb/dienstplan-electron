@@ -214,18 +214,17 @@ export const webApi = {
 
     const heute = new Date().toISOString().split('T')[0]
     const dienstplanId = (await db.dienstplaene.add({
-      id: 0,
       name: dienstplanName,
       monat_jahr: monatJahr,
       erstellt_am: heute,
       letztes_update: heute,
       status: DienstplanStatus.ENTWURF,
       bemerkung: ''
-    })) as number
+    } as Dienstplan)) as number
 
     const diensteToSave: Dienst[] = result.dienste.map((d) => ({
       ...d,
-      id: 0,
+      id: undefined,
       dienstplan_id: dienstplanId
     }))
 
