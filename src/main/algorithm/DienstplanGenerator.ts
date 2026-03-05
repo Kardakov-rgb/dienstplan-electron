@@ -48,8 +48,8 @@ function getTageMonate(monatJahr: string): string[] {
 }
 
 function addDays(datum: string, days: number): string {
-  const d = new Date(datum + 'T00:00:00')
-  d.setDate(d.getDate() + days)
+  const d = new Date(datum + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().split('T')[0]
 }
 
@@ -106,7 +106,6 @@ export class DienstplanGenerator {
   }
 
   generate(): GeneratorResult {
-    console.log('%c=== DienstplanGenerator: NEUE VERSION (kein MCV) ===', 'color: lime; font-weight: bold')
     this.progressCallback?.(0.05)
 
     // Phase 1: Slots erstellen
