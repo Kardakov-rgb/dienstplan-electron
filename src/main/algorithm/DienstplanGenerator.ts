@@ -374,11 +374,21 @@ export class DienstplanGenerator {
       if (arten.visten >= 1) return false
     }
 
-    // Soll-Limit (VISTEN Sa+So = 1 Dienst, daher personDienstArten verwenden)
-    if (person.anzahl_dienste > 0) {
+    // Soll-Limit + gleichmäßige Monatsverteilung
+    // VISTEN-So ist Pflichtpaarung zur VISTEN-Sa → nie durch diesen Block blockieren
+    const istVistenSo = slot.art === DienstArt.VISTEN && wt === Wochentag.SONNTAG
+    if (person.anzahl_dienste > 0 && !istVistenSo) {
       const artenBisher = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
       const gesamtBisher = artenBisher.h24 + artenBisher.visten + artenBisher.davinci
       if (gesamtBisher >= person.anzahl_dienste) return false
+
+      // k-ten Dienst frühestens ab Tag floor(D * k/n) + 1
+      // → verteilt Dienste gleichmäßig über den ganzen Monat
+      const [yyyy, mm] = this.monatJahr.split('-').map(Number)
+      const D = new Date(Date.UTC(yyyy, mm, 0)).getUTCDate()
+      const tagDesMonats = parseInt(slot.datum.split('-')[2], 10)
+      const idealFruehestens = Math.floor((D * gesamtBisher) / person.anzahl_dienste) + 1
+      if (tagDesMonats < idealFruehestens) return false
     }
 
     return true
