@@ -200,6 +200,18 @@ export const webApi = {
     const wuensche = await db.wuensche.where('monat_jahr').equals(monatJahr).toArray()
     const fairnessScores = await computeFairnessScoresBeforeMonat(monatJahr)
 
+    // Vormonat-Dienste für Regel 7 (Monat-X+1 Samstag-Bevorzugung)
+    const [year, month] = monatJahr.split('-').map(Number)
+    const vormonat =
+      month === 1
+        ? `${year - 1}-12`
+        : `${year}-${String(month - 1).padStart(2, '0')}`
+    const vormonatPlaene = await db.dienstplaene.where('monat_jahr').equals(vormonat).toArray()
+    const vorherigeDienste =
+      vormonatPlaene.length > 0
+        ? await db.dienste.where('dienstplan_id').anyOf(vormonatPlaene.map((p) => p.id)).toArray()
+        : []
+
     progressCallbacks.forEach((cb) => cb(0))
 
     const generator = new DienstplanGenerator(
@@ -207,7 +219,8 @@ export const webApi = {
       monatJahr,
       wuensche,
       fairnessScores,
-      (p) => progressCallbacks.forEach((cb) => cb(p))
+      (p) => progressCallbacks.forEach((cb) => cb(p)),
+      vorherigeDienste
     )
 
     const result = generator.generate()

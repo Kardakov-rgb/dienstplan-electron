@@ -35,7 +35,8 @@ export enum DienstplanStatus {
 export enum WunschTyp {
   URLAUB = 'URLAUB',
   FREIWUNSCH = 'FREIWUNSCH',
-  DIENSTWUNSCH = 'DIENSTWUNSCH'
+  DIENSTWUNSCH = 'DIENSTWUNSCH',
+  FEIERTAG = 'FEIERTAG'
 }
 
 // ===================== INTERFACES =====================

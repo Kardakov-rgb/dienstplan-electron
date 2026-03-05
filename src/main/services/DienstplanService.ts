@@ -1,6 +1,7 @@
 import { WebContents } from 'electron'
 import { PersonDAO } from '../database/PersonDAO'
 import { DienstplanDAO } from '../database/DienstplanDAO'
+import { DienstDAO } from '../database/DienstDAO'
 import { MonatsWunschDAO } from '../database/MonatsWunschDAO'
 import { FairnessHistorieDAO } from '../database/FairnessHistorieDAO'
 import { DienstplanGenerator } from '../algorithm/DienstplanGenerator'
@@ -17,6 +18,7 @@ import {
 export class DienstplanService {
   private personDAO = new PersonDAO()
   private dienstplanDAO = new DienstplanDAO()
+  private dienstDAO = new DienstDAO()
   private wunschDAO = new MonatsWunschDAO()
   private fairnessDAO = new FairnessHistorieDAO()
 
@@ -29,6 +31,14 @@ export class DienstplanService {
     const wuensche = this.wunschDAO.getForMonat(monatJahr)
     const fairnessScores = this.fairnessDAO.getScoresBeforeMonat(monatJahr)
 
+    // Vormonat-Dienste für Regel 7 (Monat-X+1 Samstag-Bevorzugung)
+    const [year, month] = monatJahr.split('-').map(Number)
+    const vormonat =
+      month === 1
+        ? `${year - 1}-12`
+        : `${year}-${String(month - 1).padStart(2, '0')}`
+    const vorherigeDienste = this.dienstDAO.getByMonatJahr(vormonat)
+
     const generator = new DienstplanGenerator(
       personen,
       monatJahr,
@@ -36,7 +46,8 @@ export class DienstplanService {
       fairnessScores,
       (progress) => {
         sender.send('dienstplaene:generate:progress', progress)
-      }
+      },
+      vorherigeDienste
     )
 
     const result = generator.generate()
