@@ -80,6 +80,9 @@ export class DienstplanGenerator {
   private personDienste24h: Map<number, Set<string>> = new Map()
   private personDienstArten: Map<number, { h24: number; visten: number; davinci: number }> =
     new Map()
+  // Zähler aus Vormonaten (für fairnessbasierte Rotation über Monate hinweg)
+  private historischeFairness: Map<number, { h24: number; visten: number; davinci: number }> =
+    new Map()
   private warnungen: string[] = []
 
   constructor(
@@ -108,15 +111,24 @@ export class DienstplanGenerator {
   generate(): GeneratorResult {
     this.progressCallback?.(0.05)
 
+    // Historische Fairness einmalig berechnen
+    this.berechneHistorischeFairness()
+
     // Phase 1: Slots erstellen
     const slots = this.erstelleSlots()
     this.progressCallback?.(0.1)
 
-    // Phase 2: Constraint Propagation
-    this.constraintPropagation(slots)
-    this.progressCallback?.(0.4)
+    // Phase 2: Sonderslots vorab zuteilen (DAVINCI + VISTEN)
+    // → stellt faire Rotation dieser Typen sicher bevor 24h-Dienste vergeben werden
+    this.vorverteileDAVINCI(slots)
+    this.vorverteileVISTEN(slots)
+    this.progressCallback?.(0.25)
 
-    // Phase 3: Backtracking in chronologischer Reihenfolge
+    // Phase 3: Constraint Propagation
+    this.constraintPropagation(slots)
+    this.progressCallback?.(0.5)
+
+    // Phase 4: Backtracking in chronologischer Reihenfolge
     // Bewusst kein MCV-Reordering: alle zeitbasierten Constraints (24h-Ruhezeit,
     // 2-Tage-Abstand etc.) setzen chronologische Verarbeitungsreihenfolge voraus.
     this.backtrack(slots, 0)
@@ -374,21 +386,12 @@ export class DienstplanGenerator {
       if (arten.visten >= 1) return false
     }
 
-    // Soll-Limit + gleichmäßige Monatsverteilung
-    // VISTEN-So ist Pflichtpaarung zur VISTEN-Sa → nie durch diesen Block blockieren
+    // Soll-Limit (VISTEN-So ist Pflichtpaarung → nie blockieren)
     const istVistenSo = slot.art === DienstArt.VISTEN && wt === Wochentag.SONNTAG
     if (person.anzahl_dienste > 0 && !istVistenSo) {
       const artenBisher = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
       const gesamtBisher = artenBisher.h24 + artenBisher.visten + artenBisher.davinci
       if (gesamtBisher >= person.anzahl_dienste) return false
-
-      // k-ten Dienst frühestens ab Tag floor(D * k/n) + 1
-      // → verteilt Dienste gleichmäßig über den ganzen Monat
-      const [yyyy, mm] = this.monatJahr.split('-').map(Number)
-      const D = new Date(Date.UTC(yyyy, mm, 0)).getUTCDate()
-      const tagDesMonats = parseInt(slot.datum.split('-')[2], 10)
-      const idealFruehestens = Math.floor((D * gesamtBisher) / person.anzahl_dienste) + 1
-      if (tagDesMonats < idealFruehestens) return false
     }
 
     return true
@@ -501,11 +504,12 @@ export class DienstplanGenerator {
     // Priorität 7: Wenigste Dienste bisher
     score -= diensteSet.size * 2
 
-    // Priorität 8: DienstArt-Balance
+    // Priorität 8: DienstArt-Balance (aktueller Monat + historischer Verlauf)
     const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
-    if (slot.art === DienstArt.DIENST_24H) score -= arten.h24
-    if (slot.art === DienstArt.VISTEN) score -= arten.visten * 2
-    if (slot.art === DienstArt.DAVINCI) score -= arten.davinci * 2
+    const hist = this.historischeFairness.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+    if (slot.art === DienstArt.DIENST_24H) score -= arten.h24 + hist.h24 * 0.5
+    if (slot.art === DienstArt.VISTEN) score -= (arten.visten + hist.visten) * 6
+    if (slot.art === DienstArt.DAVINCI) score -= (arten.davinci + hist.davinci) * 6
 
     // Priorität 8b (weich): Regel 4 – DAVINCI zählt als WE-Belastung
     if (slot.art === DienstArt.DAVINCI) {
@@ -520,17 +524,111 @@ export class DienstplanGenerator {
         const weId = getWochenendeId(datum)
         if (weId) belegteWEs.add(weId)
       }
-      // DaVinci auf Freitag würde neues WE belegen → Penalty wenn schon 2 WEs voll
-      const daVinciWeId = getWochenendeId(slot.datum) // immer ein Freitag → gibt Sa zurück
+      const daVinciWeId = getWochenendeId(slot.datum)
       if (daVinciWeId && !belegteWEs.has(daVinciWeId) && belegteWEs.size >= 2) {
         score -= 50
       }
     }
 
-    // Priorität 9: Alphabetisch (Determinismus)
-    score -= person.name.charCodeAt(0) * 0.001
+    // Priorität 9: Weiche Monatsverteilung (Score-Strafe statt harter Sperre)
+    if (person.anzahl_dienste > 0) {
+      const gesamtBisher = arten.h24 + arten.visten + arten.davinci
+      const [yyyy, mm] = this.monatJahr.split('-').map(Number)
+      const D = new Date(Date.UTC(yyyy, mm, 0)).getUTCDate()
+      const tagDesMonats = parseInt(slot.datum.split('-')[2], 10)
+      const idealFruehestens = Math.floor((D * gesamtBisher) / person.anzahl_dienste) + 1
+      score -= Math.max(0, idealFruehestens - tagDesMonats) * 4
+    }
+
+    // Priorität 10: Zufalls-Jitter (verhindert deterministische Muster bei Gleichstand)
+    score += Math.random() * 4
 
     return score
+  }
+
+  // Zählt wie viele Dienste je Typ jede Person in den Vormonaten hatte
+  private berechneHistorischeFairness(): void {
+    for (const p of this.personen) {
+      const h24 = this.vorherigeDienste.filter(
+        (d) => d.person_id === p.id && d.art === DienstArt.DIENST_24H
+      ).length
+      const visten = this.vorherigeDienste.filter(
+        (d) => d.person_id === p.id && d.art === DienstArt.VISTEN
+      ).length
+      const davinci = this.vorherigeDienste.filter(
+        (d) => d.person_id === p.id && d.art === DienstArt.DAVINCI
+      ).length
+      this.historischeFairness.set(p.id, { h24, visten, davinci })
+    }
+  }
+
+  // Score für Vorverteilung: wer diese DienstArt historisch am wenigsten hatte, gewinnt
+  private berechneVorverteilungScore(person: Person, art: DienstArt): number {
+    const hist = this.historischeFairness.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+    const aktuell = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+    let score = 0
+    if (art === DienstArt.DAVINCI) score -= (hist.davinci + aktuell.davinci) * 10
+    if (art === DienstArt.VISTEN) score -= (hist.visten + aktuell.visten) * 10
+    // Verbleibende Kapazität bevorzugen
+    const gesamtBisher = aktuell.h24 + aktuell.visten + aktuell.davinci
+    const verbleibend = person.anzahl_dienste > 0 ? person.anzahl_dienste - gesamtBisher : 4
+    score += verbleibend * 5
+    // Jitter für Abwechslung
+    score += Math.random() * 5
+    return score
+  }
+
+  // Vergibt alle DAVINCI-Slots vorab in zufälliger Reihenfolge nach historischer Fairness
+  private vorverteileDAVINCI(slots: DienstSlot[]): void {
+    const davinciSlots = slots
+      .filter((s) => s.art === DienstArt.DAVINCI)
+      .sort(() => Math.random() - 0.5)
+
+    for (const slot of davinciSlots) {
+      if (slot.zugewiesenePerson) continue
+      const kandidaten = this.getKandidaten(slot, slots)
+      if (kandidaten.length === 0) continue
+      const sortiert = kandidaten
+        .map((p) => ({ person: p, score: this.berechneVorverteilungScore(p, DienstArt.DAVINCI) }))
+        .sort((a, b) => b.score - a.score)
+      this.zuweisen(slot, sortiert[0].person)
+    }
+  }
+
+  // Vergibt alle VISTEN-Wochenendpaare vorab in zufälliger Reihenfolge nach historischer Fairness
+  private vorverteileVISTEN(slots: DienstSlot[]): void {
+    const vistenSaSlots = slots
+      .filter((s) => s.art === DienstArt.VISTEN && datumToWochentag(s.datum) === Wochentag.SAMSTAG)
+      .sort(() => Math.random() - 0.5)
+
+    for (const saSamstag of vistenSaSlots) {
+      if (saSamstag.zugewiesenePerson) continue
+
+      const soSonntag = slots.find(
+        (s) => s.datum === addDays(saSamstag.datum, 1) && s.art === DienstArt.VISTEN
+      )
+
+      // Nur Kandidaten nehmen die auch den Sonntag übernehmen könnten
+      const kandidaten = this.getKandidaten(saSamstag, slots).filter((p) => {
+        if (!soSonntag) return true
+        this.zuweisen(saSamstag, p)
+        const kannSo = this.istKandidat(p, soSonntag, slots)
+        this.zuweisungRueckgaengig(saSamstag, p)
+        return kannSo
+      })
+
+      if (kandidaten.length === 0) continue
+
+      const sortiert = kandidaten
+        .map((p) => ({ person: p, score: this.berechneVorverteilungScore(p, DienstArt.VISTEN) }))
+        .sort((a, b) => b.score - a.score)
+
+      const gewaehlte = sortiert[0].person
+      this.zuweisen(saSamstag, gewaehlte)
+      if (soSonntag && !soSonntag.zugewiesenePerson) {
+        this.zuweisen(soSonntag, gewaehlte)
+      }
+    }
   }
 
   private zuweisen(slot: DienstSlot, person: Person): void {
