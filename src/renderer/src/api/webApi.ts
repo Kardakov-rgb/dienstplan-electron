@@ -223,9 +223,9 @@ export const webApi = {
       bemerkung: ''
     })) as number
 
-    const diensteToSave: Dienst[] = result.dienste.map((d) => ({
+    const diensteToSave = result.dienste.map((d) => ({
       ...d,
-      id: 0,
+      id: undefined,
       dienstplan_id: dienstplanId
     }))
 
