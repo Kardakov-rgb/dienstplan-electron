@@ -104,6 +104,12 @@ export class DienstplanGenerator {
     // Phase 3: MCV-Sortierung (nur unzugewiesene)
     const offeneSlots = slots.filter((s) => !s.zugewiesenePerson)
     offeneSlots.sort((a, b) => {
+      // Primär: Prioritätsgruppe (Visten → 24h Fr/Sa/So → 24h Rest → DaVinci)
+      const pa = this.getPriorityGruppe(a)
+      const pb = this.getPriorityGruppe(b)
+      if (pa !== pb) return pa - pb
+
+      // Sekundär: MCV (wenigste Kandidaten zuerst)
       const ka = this.getKandidaten(a, slots).length
       const kb = this.getKandidaten(b, slots).length
       return ka - kb
@@ -179,6 +185,13 @@ export class DienstplanGenerator {
   }
 
   private constraintPropagation(slots: DienstSlot[]): void {
+    // Einmalig nach Prioritätsgruppe vorsortieren (Visten → 24h Fr/Sa/So → 24h Rest → DaVinci)
+    slots.sort((a, b) => {
+      if (a.zugewiesenePerson && !b.zugewiesenePerson) return 1
+      if (!a.zugewiesenePerson && b.zugewiesenePerson) return -1
+      return this.getPriorityGruppe(a) - this.getPriorityGruppe(b)
+    })
+
     let changed = true
     let iterations = 0
 
@@ -292,6 +305,17 @@ export class DienstplanGenerator {
     }
 
     return true
+  }
+
+  private getPriorityGruppe(slot: DienstSlot): number {
+    const wt = datumToWochentag(slot.datum)
+    const wochenendeTage = [Wochentag.FREITAG, Wochentag.SAMSTAG, Wochentag.SONNTAG]
+
+    if (slot.art === DienstArt.VISTEN) return 0
+    if (slot.art === DienstArt.DIENST_24H && wochenendeTage.includes(wt)) return 1
+    if (slot.art === DienstArt.DIENST_24H) return 2
+    if (slot.art === DienstArt.DAVINCI) return 3
+    return 4
   }
 
   private sortiereKandidaten(
