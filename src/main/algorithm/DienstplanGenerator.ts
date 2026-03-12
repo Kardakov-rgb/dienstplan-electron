@@ -295,13 +295,71 @@ export class DienstplanGenerator {
       if (!istVistenWE) return false
     }
 
-    // Soll-Limit
+    // Ruhezeit vorwärts (1 Tag) – für alle Diensttypen
+    const morgen = addDays(slot.datum, 1)
+    const dienstMorgen = slots.find(
+      (s) => s.datum === morgen && s.zugewiesenePerson?.id === person.id
+    )
+    if (dienstMorgen) {
+      // Ausnahme: Sa Visten → So Visten (Wochenend-Paar)
+      const istVistenWE =
+        slot.art === DienstArt.VISTEN &&
+        wt === Wochentag.SAMSTAG &&
+        dienstMorgen.art === DienstArt.VISTEN &&
+        datumToWochentag(morgen) === Wochentag.SONNTAG
+      if (!istVistenWE) return false
+    }
+
+    // 2-Tage-Ruhezeit rückwärts (nur 24h→24h)
+    if (slot.art === DienstArt.DIENST_24H) {
+      const vorvorTag = subtractDays(slot.datum, 2)
+      const hat24hVorvorTag = slots.find(
+        (s) =>
+          s.datum === vorvorTag &&
+          s.art === DienstArt.DIENST_24H &&
+          s.zugewiesenePerson?.id === person.id
+      )
+      if (hat24hVorvorTag) return false
+    }
+
+    // 2-Tage-Ruhezeit vorwärts (nur 24h→24h)
+    if (slot.art === DienstArt.DIENST_24H) {
+      const uebermorgen = addDays(slot.datum, 2)
+      const hat24hUebermorgen = slots.find(
+        (s) =>
+          s.datum === uebermorgen &&
+          s.art === DienstArt.DIENST_24H &&
+          s.zugewiesenePerson?.id === person.id
+      )
+      if (hat24hUebermorgen) return false
+    }
+
+    // Max. 1 Visten-Einheit pro Monat (Sa+So Paar = 1 Einheit)
+    if (slot.art === DienstArt.VISTEN) {
+      const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+      if (arten.visten >= 1) {
+        // Ausnahme: zweiter Teil eines Sa→So Paares erlaubt
+        if (wt === Wochentag.SONNTAG) {
+          const samstag = subtractDays(slot.datum, 1)
+          const hatSamstagVisten = slots.find(
+            (s) =>
+              s.datum === samstag &&
+              s.art === DienstArt.VISTEN &&
+              s.zugewiesenePerson?.id === person.id
+          )
+          if (!hatSamstagVisten) return false
+        } else {
+          return false
+        }
+      }
+    }
+
+    // Soll-Limit (Sa+So Visten = 1 Dienst)
     if (person.anzahl_dienste > 0) {
-      const aktuelle = diensteDaten.size
-      const zugewiesen = slots.filter(
-        (s) => s.datum !== slot.datum && s.zugewiesenePerson?.id === person.id
-      ).length
-      if (aktuelle + zugewiesen >= person.anzahl_dienste) return false
+      const arten = this.personDienstArten.get(person.id) ?? { h24: 0, visten: 0, davinci: 0 }
+      const vistenBeitrag = arten.visten > 0 ? 1 : 0
+      const effektivBelegte = arten.h24 + arten.davinci + vistenBeitrag
+      if (effektivBelegte >= person.anzahl_dienste) return false
     }
 
     return true
