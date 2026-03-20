@@ -3,6 +3,7 @@ import { PersonDAO } from '../database/PersonDAO'
 import { DienstplanDAO } from '../database/DienstplanDAO'
 import { MonatsWunschDAO } from '../database/MonatsWunschDAO'
 import { FairnessHistorieDAO } from '../database/FairnessHistorieDAO'
+import { DienstDAO } from '../database/DienstDAO'
 import { DienstplanGenerator } from '../algorithm/DienstplanGenerator'
 import {
   Dienstplan,
@@ -19,6 +20,7 @@ export class DienstplanService {
   private dienstplanDAO = new DienstplanDAO()
   private wunschDAO = new MonatsWunschDAO()
   private fairnessDAO = new FairnessHistorieDAO()
+  private dienstDAO = new DienstDAO()
 
   async generiere(
     monatJahr: string,
@@ -28,12 +30,14 @@ export class DienstplanService {
     const personen = this.personDAO.getAll()
     const wuensche = this.wunschDAO.getForMonat(monatJahr)
     const fairnessScores = this.fairnessDAO.getScoresBeforeMonat(monatJahr)
+    const dienstCountScores = this.dienstDAO.getEffektiveDienstDurchschnitte(monatJahr)
 
     const generator = new DienstplanGenerator(
       personen,
       monatJahr,
       wuensche,
       fairnessScores,
+      dienstCountScores,
       (progress) => {
         sender.send('dienstplaene:generate:progress', progress)
       }

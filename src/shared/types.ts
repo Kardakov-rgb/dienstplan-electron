@@ -97,6 +97,12 @@ export interface FairnessScore {
   monate: number
 }
 
+export interface DienstCountScore {
+  person_id: number
+  durchschnitt: number // Ø effektive Dienst-Einheiten/Monat aus Vormonaten
+  anzahl_monate: number // Anzahl ausgewerteter Vormonaten
+}
+
 export interface StatistikDaten {
   gesamt: number
   zugewiesen: number

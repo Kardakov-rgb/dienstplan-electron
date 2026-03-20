@@ -76,14 +76,17 @@ export class StatistikService {
     bis: string
   ): PersonVerteilung[] {
     const rows = this.dienstDAO.getStatistikByPersonAndZeitraum(von, bis)
+    const vistenEinheiten = this.dienstDAO.getVistenEinheitenByPersonAndZeitraum(von, bis)
 
     return personen
       .map((person) => {
         const personRows = rows.filter((r) => r.person_id === person.id)
         const h24 = personRows.find((r) => r.art === 'DIENST_24H')?.anzahl ?? 0
         const visten = personRows.find((r) => r.art === 'VISTEN')?.anzahl ?? 0
+        const vistenEinh =
+          vistenEinheiten.find((v) => v.person_id === person.id)?.visten_einheiten ?? 0
         const davinci = personRows.find((r) => r.art === 'DAVINCI')?.anzahl ?? 0
-        const ist = h24 + visten + davinci
+        const ist = h24 + vistenEinh + davinci
 
         // Soll über Zeitraum berechnen
         const monate = this.getMonateInZeitraum(von, bis)

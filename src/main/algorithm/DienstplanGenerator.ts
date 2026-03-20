@@ -6,7 +6,8 @@ import {
   DienstStatus,
   Wochentag,
   WunschTyp,
-  FairnessScore
+  FairnessScore,
+  DienstCountScore
 } from '../../shared/types'
 
 interface DienstSlot {
@@ -63,6 +64,7 @@ export class DienstplanGenerator {
   private monatJahr: string
   private wuensche: MonatsWunsch[]
   private fairnessScores: FairnessScore[]
+  private dienstCountScores: DienstCountScore[]
   private progressCallback?: (progress: number) => void
 
   // Laufende Zähler
@@ -76,12 +78,14 @@ export class DienstplanGenerator {
     monatJahr: string,
     wuensche: MonatsWunsch[],
     fairnessScores: FairnessScore[],
+    dienstCountScores: DienstCountScore[] = [],
     progressCallback?: (progress: number) => void
   ) {
     this.personen = personen
     this.monatJahr = monatJahr
     this.wuensche = wuensche
     this.fairnessScores = fairnessScores
+    this.dienstCountScores = dienstCountScores
     this.progressCallback = progressCallback
 
     // Initialisierung
@@ -435,6 +439,15 @@ export class DienstplanGenerator {
     const fairness = this.fairnessScores.find((f) => f.person_id === person.id)
     if (fairness) {
       score += (1.0 - fairness.score) * 30 // Benachteiligte bevorzugen
+    }
+
+    // Priorität 4b: Cross-Monat Dienstanzahl-Ausgleich
+    const dienstCount = this.dienstCountScores.find((s) => s.person_id === person.id)
+    if (dienstCount && dienstCount.anzahl_monate >= 1 && person.anzahl_dienste > 0) {
+      const delta = dienstCount.durchschnitt - person.anzahl_dienste
+      // delta > 0: hatte historisch mehr als Soll → Abzug
+      // delta < 0: hatte historisch weniger als Soll → Bonus
+      score -= delta * 15
     }
 
     // Priorität 5: Soll-Erfüllung

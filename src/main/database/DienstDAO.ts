@@ -83,4 +83,45 @@ export class DienstDAO {
       )
       .all(von, bis) as { datum: string; person_name: string; anzahl: number }[]
   }
+
+  getVistenEinheitenByPersonAndZeitraum(
+    von: string,
+    bis: string
+  ): { person_id: number; visten_einheiten: number }[] {
+    return getDb()
+      .prepare(
+        `SELECT d.person_id, COUNT(DISTINCT dp.monat_jahr) as visten_einheiten
+         FROM dienst d
+         JOIN dienstplan dp ON d.dienstplan_id = dp.id
+         WHERE dp.monat_jahr >= ? AND dp.monat_jahr <= ?
+           AND d.person_id IS NOT NULL AND d.art = 'VISTEN'
+         GROUP BY d.person_id`
+      )
+      .all(von, bis) as { person_id: number; visten_einheiten: number }[]
+  }
+
+  getEffektiveDienstDurchschnitte(
+    bisMonatJahr: string
+  ): { person_id: number; durchschnitt: number; anzahl_monate: number }[] {
+    return getDb()
+      .prepare(
+        `WITH monthly AS (
+           SELECT d.person_id, dp.monat_jahr,
+             SUM(CASE WHEN d.art = 'DIENST_24H' THEN 1 ELSE 0 END) as h24,
+             SUM(CASE WHEN d.art = 'DAVINCI' THEN 1 ELSE 0 END) as davinci,
+             CASE WHEN SUM(CASE WHEN d.art = 'VISTEN' THEN 1 ELSE 0 END) > 0
+                  THEN 1 ELSE 0 END as hat_visten
+           FROM dienst d
+           JOIN dienstplan dp ON d.dienstplan_id = dp.id
+           WHERE dp.monat_jahr < ? AND d.person_id IS NOT NULL
+           GROUP BY d.person_id, dp.monat_jahr
+         )
+         SELECT person_id,
+           CAST(SUM(h24 + davinci + hat_visten) AS REAL) / COUNT(*) as durchschnitt,
+           COUNT(*) as anzahl_monate
+         FROM monthly
+         GROUP BY person_id`
+      )
+      .all(bisMonatJahr) as { person_id: number; durchschnitt: number; anzahl_monate: number }[]
+  }
 }
