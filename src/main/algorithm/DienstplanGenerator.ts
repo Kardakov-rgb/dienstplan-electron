@@ -48,8 +48,9 @@ function getTageMonate(monatJahr: string): string[] {
 }
 
 function addDays(datum: string, days: number): string {
-  const d = new Date(datum + 'T00:00:00')
-  d.setDate(d.getDate() + days)
+  const [year, month, day] = datum.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, day))
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().split('T')[0]
 }
 
