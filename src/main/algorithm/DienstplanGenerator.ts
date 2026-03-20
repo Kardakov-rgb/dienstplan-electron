@@ -444,7 +444,7 @@ export class DienstplanGenerator {
       score += (1.0 - ratio) * 25
     }
 
-    // Priorität 6: Abstand zum letzten Dienst
+    // Priorität 6: Abstand zum letzten Dienst + Gleichverteilung über den Monat
     const diensteSet = this.personDienste.get(person.id) ?? new Set()
     const diensteDaten = [...diensteSet].sort()
     if (diensteDaten.length > 0) {
@@ -452,9 +452,18 @@ export class DienstplanGenerator {
       const abstand =
         (new Date(slot.datum).getTime() - new Date(letzterDienst).getTime()) /
         (1000 * 60 * 60 * 24)
-      score += Math.min(abstand, 14) // max 14 Punkte für Abstand
+      let abstandScore = Math.min(abstand, 30) // Cap erhöht von 14 auf 30 Tage
+      // Abzug wenn Abstand kleiner als idealer Takt (gleichmäßige Monatsverteilung)
+      if (person.anzahl_dienste > 0) {
+        const daysInMonth = getTageMonate(this.monatJahr).length
+        const idealInterval = daysInMonth / person.anzahl_dienste
+        if (abstand < idealInterval) {
+          abstandScore -= (idealInterval - abstand) * 2 // 2 Punkte pro verfrühtem Tag
+        }
+      }
+      score += abstandScore
     } else {
-      score += 14
+      score += 30 // kein vorheriger Dienst: volles Gewicht
     }
 
     // Priorität 7: Wenigste Dienste bisher
